@@ -1,13 +1,13 @@
 package parse
 
 import (
-	"alphavantage/cmd/apigen/api"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/jay9909/alphavantage/cmd/apigen/api"
 	"html"
 	"io"
 	"net/http"

@@ -1,7 +1,6 @@
-module alphavantage
+module github.com/jay9909/alphavantage
 
 go 1.20
-
 
 require github.com/PuerkitoBio/goquery v1.8.1
 

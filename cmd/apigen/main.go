@@ -1,19 +1,13 @@
 package main
 
 import (
-	"alphavantage/cmd/apigen/gen"
-	"alphavantage/cmd/apigen/parse"
 	"fmt"
+	"github.com/jay9909/alphavantage/cmd/apigen/gen"
+	"github.com/jay9909/alphavantage/cmd/apigen/parse"
 )
 
 func main() {
-	/////////////////////////////////////////////////////////////////////////////////////////////////////
-	// Don't turn this on until we're actually ready to start relying on the generated code.
-	//
-	// previousChecksum, _ := gen.GetPreviousChecksum()
-	/////////////////////////////////////////////////////////////////////////////////////////////////////
-	var previousChecksum [32]byte
-
+	previousChecksum, err := gen.GetPreviousChecksum()
 	endpoints, accessRecord, err := parse.FindEndpoints(previousChecksum)
 	if err == parse.NoChangeError {
 		fmt.Printf("No change to API documentation since previous generation")

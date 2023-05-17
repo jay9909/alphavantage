@@ -1,6 +1,13 @@
 package net
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+const baseUrl = "https://www.alphavantage.co/query?"
 
 type Client struct {
 	apiKey    string
@@ -16,6 +23,20 @@ func NewClient(apiKey string, rateLimit, dayCap int) *Client {
 	}
 }
 
-func (c *Client) Hello() {
-	fmt.Println("Hello")
+// Query sends the given request to the Alphavantage service.  Note: params should NOT include the function or apiKey
+// parameter key/value pairs.
+func (c *Client) Query(function string, params map[string]string) (*http.Response, error) {
+	var urlBuilder strings.Builder
+	urlBuilder.WriteString(baseUrl)
+	urlBuilder.WriteString(fmt.Sprintf("function=%v", function))
+	urlBuilder.WriteString(fmt.Sprintf("&apikey=%v", c.apiKey))
+
+	for key, value := range params {
+		if value != "" && key != "function" && key != "apikey" {
+			urlBuilder.WriteString(
+				fmt.Sprintf("&%v=%v", url.QueryEscape(key), url.QueryEscape(value)))
+		}
+	}
+
+	return http.Get(urlBuilder.String())
 }

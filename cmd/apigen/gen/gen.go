@@ -1,17 +1,18 @@
 package gen
 
 import (
-	"alphavantage/cmd/apigen/api"
 	"encoding/base64"
 	"fmt"
+	"github.com/jay9909/alphavantage/cmd/apigen/api"
+	"go/format"
 	"io"
 	"os"
 	"strings"
-	"text/template"
 	"time"
 )
 
 const generatedFileName = "api_generated.go"
+const documentationPage = "https://www.alphavantage.co/documentation/"
 
 func GetPreviousChecksum() ([32]byte, error) {
 	// Find the last line in the generated file, which should look like this:
@@ -30,8 +31,8 @@ func GetPreviousChecksum() ([32]byte, error) {
 		}
 	}
 
-	// The Checksum line that we are looking for is ~58 bytes including the trailing newline
-	const checksumLength = 58
+	// The Checksum line that we are looking for should be 58 bytes including the trailing newline
+	const checksumLength = 60
 	fileSize := fileInfo.Size()
 	if fileSize < checksumLength {
 		// If the file is less than this, it can't possibly contain the needed checksum line, let alone the
@@ -53,8 +54,8 @@ func GetPreviousChecksum() ([32]byte, error) {
 	checksumTag := "// Checksum: "
 	checksumLine := strings.TrimSpace(string(fileEnd))
 
-	strings.Index(checksumLine, "// Checksum: ")
-	checksumStr := checksumLine[len(checksumTag):]
+	checksumPos := strings.Index(checksumLine, "// Checksum: ")
+	checksumStr := checksumLine[checksumPos+len(checksumTag):]
 
 	checksumBytes, err := base64.StdEncoding.DecodeString(checksumStr)
 	if err != nil {
@@ -66,46 +67,146 @@ func GetPreviousChecksum() ([32]byte, error) {
 }
 
 func GenerateApi(endpoints api.Endpoints, accessRecord api.AccessRecord) error {
-	//templateBytes, err := os.ReadFile("cmd/apigen/template.go")
-	//if err != nil {
-	//	panic(fmt.Errorf("error opening the template: %W", err))
-	//}
-	//
-	//// Extract templates from the file
-	//templates := string(templateBytes)
-
 	f, err := os.Create(generatedFileName)
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		err := f.Close()
+
+	err = writeHeader(f, accessRecord)
+	if err != nil {
+		panic(fmt.Errorf("could not write file header to file: %w", err))
+	}
+
+	for category, endpointList := range endpoints {
+		err = writeCategory(f, category)
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("could not write category header for %v: %w", category.ReadableName, err))
 		}
-	}()
+
+		for _, endpoint := range endpointList {
+			err = writeEndpoint(f, endpoint)
+			if err != nil {
+				panic(fmt.Errorf("could not write endpoint %v function to file: %w",
+					endpoint.Function, err))
+			}
+		}
+	}
+
+	err = writeChecksum(f, accessRecord)
+	if err != nil {
+		panic(fmt.Errorf("could not write file header to file: %w", err))
+	}
+
+	err = f.Close()
+	if err != nil {
+		fmt.Printf("Error closing generated file: %v", err)
+	}
+
+	// Gofmt the file
+	generatedContents, err := os.ReadFile(generatedFileName)
+	if err != nil {
+		panic(fmt.Errorf("error reading the generated file prior to formatting: %w", err))
+	}
+
+	formattedGeneratedContents, err := format.Source(generatedContents)
+	if err != nil {
+		panic(fmt.Errorf("error formatting the generated file: %w", err))
+	}
+	err = os.WriteFile(generatedFileName, formattedGeneratedContents, 666)
+	if err != nil {
+		panic(fmt.Errorf("error writing the go-fmt'ed generated code to disk: %w", err))
+	}
 
 	return nil
 }
 
-func GenerateHead(f *os.File, templates string) error {
-	// Get the generated file header template
-	templateStart := "/* Start File Template */"
-	templateEnd := "/* End File Template */"
-
-	headerTemplateStart := strings.Index(templates, templateStart) + len(templateStart) + 1
-	headerTemplateEnd := strings.Index(templates, templateEnd)
-	headerTemplate := templates[headerTemplateStart:headerTemplateEnd]
-
-	templateImpl, err := template.New("header_template").Parse(headerTemplate)
-	if err != nil {
-		return err
+func writeHeader(f *os.File, accessRecord api.AccessRecord) error {
+	headerParams := map[string]string{
+		"Date": accessRecord.Date.Format(time.DateTime),
 	}
 
-	err = templateImpl.Execute(f, struct {
-		DateTime time.Time
-	}{
-		DateTime: time.Now().UTC(),
-	})
-	return err
+	return fileHeaderTemplate.Execute(f, headerParams)
+}
+
+func writeCategory(f *os.File, category api.Category) error {
+	categoryParams := map[string]string{
+		"LinkName":     documentationPage + category.LinkName,
+		"ReadableName": category.ReadableName,
+		"Desc":         wrapInComments(category.Desc),
+	}
+
+	return categoryTemplate.Execute(f, categoryParams)
+}
+
+func writeEndpoint(f *os.File, endpoint api.Endpoint) error {
+	// The function CURRENCY_EXCHANGE_RATE is in the documentation twice, once under Foreign Exchange and
+	// once under Digital & Crypto Currencies.  The "function" and other parameters are identical.  Keep
+	// the one under Foreign Exchange and skip the one under Digital & Crypto Currencies
+	if endpoint.LinkName == "#crypto-exchange" {
+		return nil
+	}
+
+	function := endpoint.Function
+	funcLower := strings.ToLower(function)
+	splitFunc := strings.Split(funcLower, "_")
+	for i, word := range splitFunc {
+		splitFunc[i] = strings.ToTitle(string(word[0])) + word[1:]
+	}
+	funcName := strings.Join(splitFunc, "")
+
+	var docCommentBuilder strings.Builder
+
+	if endpoint.Premium == true {
+		docCommentBuilder.WriteString("// [PREMIUM] ")
+	} else {
+		docCommentBuilder.WriteString("// ")
+	}
+
+	// Add the name, endpoint description, and link to the doc comment.
+	docCommentBuilder.WriteString(fmt.Sprintf("%v\n// %v\n// %v\n//\n",
+		endpoint.ReadableName, wrapInComments(endpoint.Desc), documentationPage+endpoint.LinkName))
+
+	// Now collect the parameters.  Add them to the doc comment and set up the function body params.
+	docCommentBuilder.WriteString("// Parameters:")
+
+	var argList []string // Argument list for the function signature
+	var params []string  // Function body shuttling from arguments to parameter map
+
+	for _, param := range endpoint.Params {
+		if param.Name != "function" && param.Name != "apikey" {
+			docCommentBuilder.WriteString(fmt.Sprintf("\n// -\t%v: %v",
+				param.Name, wrapInComments(param.Desc)))
+
+			argList = append(argList, strings.ToLower(param.Name))
+			params = append(params, fmt.Sprintf("\t\t\"%v\": %v,",
+				param.Name, strings.ToLower(param.Name)))
+		}
+	}
+
+	arguments := strings.Join(argList, ", ") + " string"
+
+	endpointParams := map[string]string{
+		"FuncName":         funcName,
+		"EndpointFunction": function,
+		"DocComment":       docCommentBuilder.String(),
+		"ArgList":          arguments,
+		"QueryParams":      strings.Join(params, "\n"),
+	}
+
+	return endpointTemplate.Execute(f, endpointParams)
+}
+
+func writeChecksum(f *os.File, accessRecord api.AccessRecord) error {
+	checksumBytes := accessRecord.Checksum
+	checksum := base64.StdEncoding.EncodeToString(checksumBytes[:])
+
+	footerParams := map[string]string{
+		"Checksum": checksum,
+	}
+
+	return checksumTemplate.Execute(f, footerParams)
+}
+
+func wrapInComments(description string) string {
+	return strings.Join(strings.Split(description, "\n"), "\n// ")
 }

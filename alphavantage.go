@@ -1,6 +1,8 @@
 package alphavantage
 
-import "alphavantage/net"
+import (
+	"github.com/jay9909/alphavantage/net"
+)
 
 //go:generate go run cmd/apigen/main.go
 
@@ -13,8 +15,4 @@ func New(apiKey string, rateLimit int, dayCap int) *Alphavantage {
 		client: net.NewClient(apiKey, rateLimit, dayCap),
 	}
 	return this
-}
-
-func (av *Alphavantage) DoTheThing() {
-	av.client.Hello()
 }
