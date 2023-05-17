@@ -9,6 +9,8 @@ var fileHeaderTemplate = template.Must(template.New("File Header").
 
 package alphavantage
 
+import "github.com/jay9909/alphavantage/api"
+
 `))
 
 var categoryTemplate = template.Must(template.New("Category").Parse(`
@@ -20,7 +22,7 @@ var categoryTemplate = template.Must(template.New("Category").Parse(`
 
 var endpointTemplate = template.Must(template.New("Function").Parse(`
 {{.DocComment}}
-func (a *Alphavantage) Get{{.FuncName}}({{.ArgList}}) (*http.Response, error) {
+func (a *Alphavantage) Get{{.FuncName}}({{.ArgList}}) api.Response {
 	function := "{{.EndpointFunction}}"
 	params := map[string]string{
 {{.QueryParams}}

@@ -7,7 +7,9 @@ import (
 )
 
 func main() {
-	previousChecksum, err := gen.GetPreviousChecksum()
+	// previousChecksum, err := gen.GetPreviousChecksum()
+	var previousChecksum [32]byte
+
 	endpoints, accessRecord, err := parse.FindEndpoints(previousChecksum)
 	if err == parse.NoChangeError {
 		fmt.Printf("No change to API documentation since previous generation")
