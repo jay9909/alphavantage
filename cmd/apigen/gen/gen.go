@@ -174,12 +174,17 @@ func writeEndpoint(f *os.File, endpoint api.Endpoint) error {
 
 	for _, param := range endpoint.Params {
 		if param.Name != "function" && param.Name != "apikey" {
-			docCommentBuilder.WriteString(fmt.Sprintf("\n// -\t%v: %v",
-				param.Name, wrapInComments(param.Desc)))
+			paramName := param.Name
+			if param.Required != true {
+				paramName = "opt_" + paramName
+			}
 
-			argList = append(argList, strings.ToLower(param.Name))
+			docCommentBuilder.WriteString(fmt.Sprintf("\n// -\t%v: %v",
+				paramName, wrapInComments(param.Desc)))
+
+			argList = append(argList, strings.ToLower(paramName))
 			params = append(params, fmt.Sprintf("\t\t\"%v\": %v,",
-				param.Name, strings.ToLower(param.Name)))
+				param.Name, strings.ToLower(paramName)))
 		}
 	}
 

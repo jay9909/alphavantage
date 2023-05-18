@@ -12,25 +12,27 @@ type Response struct {
 	Response *http.Response
 }
 
-func (resp *Response) GetJson() (map[string]interface{}, error) {
+// GetJson populates the provided reference with a decoded JSON response.
+func (resp *Response) GetJson(result interface{}) error {
 	if resp.Error != nil {
-		return nil, fmt.Errorf("response represents an error and cannot be parsed: %v", resp.Error)
+		return fmt.Errorf("response represents an error and cannot be parsed: %v", resp.Error)
 	}
 
 	body, err := io.ReadAll(resp.Response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("could not read response body: %w", err)
+		return fmt.Errorf("could not read response body: %w", err)
 	}
 
-	object := make(map[string]interface{})
-	err = json.Unmarshal(body, &object)
+	err = json.Unmarshal(body, &result)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse JSON response into map: %w", err)
+		return fmt.Errorf("could not parse JSON response into map: %w\n=====%v\n=====\n",
+			err, string(body))
 	}
 
-	return object, nil
+	return nil
 }
 
+// GetCsv returns the text body of the response with no modifications.
 func (resp *Response) GetCsv() (string, error) {
 	if resp.Error != nil {
 		return "", fmt.Errorf("response represents an error and cannot be parsed: %v", resp.Error)
@@ -42,4 +44,9 @@ func (resp *Response) GetCsv() (string, error) {
 	}
 
 	return string(body), nil
+}
+
+// GetText returns the text body of the response with no modifications.
+func (resp *Response) GetText() (string, error) {
+	return resp.GetCsv()
 }
