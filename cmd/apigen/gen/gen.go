@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/jay9909/alphavantage/cmd/apigen/api"
 	"go/format"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"io"
 	"os"
 	"strings"
@@ -77,12 +79,17 @@ func GenerateApi(endpoints api.Endpoints, accessRecord api.AccessRecord) error {
 		panic(fmt.Errorf("could not write file header to file: %w", err))
 	}
 
-	for category, endpointList := range endpoints {
+	categories := maps.Keys(endpoints)
+	slices.SortFunc(categories, func(cat1, cat2 api.Category) bool {
+		return cat1.LinkName < cat2.LinkName
+	})
+	for _, category := range categories {
 		err = writeCategory(f, category)
 		if err != nil {
 			panic(fmt.Errorf("could not write category header for %v: %w", category.ReadableName, err))
 		}
 
+		endpointList := endpoints[category]
 		for _, endpoint := range endpointList {
 			err = writeEndpoint(f, endpoint)
 			if err != nil {

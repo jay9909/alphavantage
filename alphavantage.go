@@ -17,6 +17,6 @@ func New(apiKey string, rateLimit int, dayCap int) *Alphavantage {
 	return this
 }
 
-func (av Alphavantage) Close() {
+func (av *Alphavantage) Close() {
 	av.client.Close()
 }

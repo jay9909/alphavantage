@@ -7,6 +7,7 @@ import (
 )
 
 func main() {
+	// Comment out the first line and un-comment the second to force re-generation
 	// previousChecksum, err := gen.GetPreviousChecksum()
 	var previousChecksum [32]byte
 
