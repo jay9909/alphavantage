@@ -34,7 +34,6 @@ func newPool(rateLimit int) pool {
 }
 
 func (p *pool) doQuery() {
-
 	request, ok := <-p.requests
 	for ok == true { // Channel is not closed.  Continue
 		fmt.Printf("Sending query: %v\n", request.query)
